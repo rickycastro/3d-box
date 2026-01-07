@@ -1125,7 +1125,7 @@ const buildBox = (oc: any, params: ShapeParams) => {
 
 const buildCylinder = (oc: any, params: ShapeParams) => {
   const { wall, top, bottom } = resolveThickness(params);
-  const topThickness = params.includeLid ? 0 : top;
+  const topThickness = 0;
 
   const innerRadius = params.insideWidth / 2;
   const outerRadius = innerRadius + wall;
@@ -1173,7 +1173,7 @@ const buildLid = (
     const outer = makeCylinderAt(oc, outerRadius, lidHeight, 0, 0, 0);
     const inner = makeCylinderAt(oc, innerRadius, lidHeight - top, 0, 0, 0);
     const lid = cutShape(oc, outer, inner);
-    return translateShape(oc, lid, -(clearance + wall), -(clearance + wall), 0);
+    return lid;
   }
 
   const baseOuterRadius = params.includeInsideRadius
