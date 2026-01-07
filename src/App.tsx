@@ -1,4 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import * as THREE from "three";
+import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import {
   type ShapeParams,
   normalizeParamsForCad,
@@ -6,7 +8,7 @@ import {
   paramsToSearch,
   roundTo
 } from "./lib/params";
-import { buildDebugInnerTool, buildStepFile } from "./lib/cad";
+import { buildDebugInnerTool, buildStepAndPreviewMesh, type PreviewMeshes } from "./lib/cad";
 import { downloadBlob } from "./lib/download";
 
 const numberInput =
@@ -23,8 +25,20 @@ export default function App() {
   );
   const [error, setError] = useState<string | null>(null);
   const [debugLog, setDebugLog] = useState<string[]>([]);
+  const [previewMesh, setPreviewMesh] = useState<PreviewMeshes | null>(null);
+  const [showBox, setShowBox] = useState(true);
+  const [showLid, setShowLid] = useState(true);
+  const previewRef = useRef<HTMLDivElement | null>(null);
+  const rendererRef = useRef<THREE.WebGLRenderer | null>(null);
+  const sceneRef = useRef<THREE.Scene | null>(null);
+  const cameraRef = useRef<THREE.PerspectiveCamera | null>(null);
+  const controlsRef = useRef<OrbitControls | null>(null);
+  const modelGroupRef = useRef<THREE.Group | null>(null);
+  const meshRefs = useRef<{ box?: THREE.Object3D; lid?: THREE.Object3D }>({});
 
   const effectiveParams = useMemo(() => normalizeParamsForCad(params), [params]);
+
+  const didInitCamera = useRef(false);
 
   useEffect(() => {
     const onPopState = () => setParams(parseParams(window.location.search));
@@ -81,10 +95,12 @@ export default function App() {
     setStatus("loading");
     setError(null);
     setDebugLog([]);
+    setPreviewMesh(null);
     try {
       await new Promise((resolve) => setTimeout(resolve, 0));
-      const data = await buildStepFile(params);
-      downloadBlob(data, "box.step");
+      const result = await buildStepAndPreviewMesh(params);
+      downloadBlob(result.step, "box.step");
+      setPreviewMesh(result.mesh);
       if (window.location.search.includes("debug=1")) {
         const debug = await buildDebugInnerTool(params);
         if (debug) {
@@ -108,6 +124,167 @@ export default function App() {
       setError(err instanceof Error ? err.message : "Generation failed.");
     }
   };
+
+  useEffect(() => {
+    const container = previewRef.current;
+    if (!container || !previewMesh) {
+      return;
+    }
+
+    didInitCamera.current = false;
+
+    const width = container.clientWidth;
+    const height = 320;
+    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+    renderer.setSize(width, height);
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    container.appendChild(renderer.domElement);
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(45, width / height, 0.1, 2000);
+    const controls = new OrbitControls(camera, renderer.domElement);
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.08;
+    const modelGroup = new THREE.Group();
+    scene.add(modelGroup);
+
+    const meshMaterial = new THREE.MeshStandardMaterial({
+      color: 0xe5e2dc,
+      metalness: 0.08,
+      roughness: 0.6,
+      side: THREE.DoubleSide
+    });
+    const edgeMaterial = new THREE.LineBasicMaterial({
+      color: 0x315a73,
+      transparent: true,
+      opacity: 0.65
+    });
+
+    const makeMesh = (data: { positions: number[]; indices: number[] }) => {
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute(
+        "position",
+        new THREE.Float32BufferAttribute(data.positions, 3)
+      );
+      geometry.setIndex(data.indices);
+      geometry.computeVertexNormals();
+      const mesh = new THREE.Mesh(geometry, meshMaterial);
+      const edges = new THREE.LineSegments(
+        new THREE.EdgesGeometry(geometry),
+        edgeMaterial
+      );
+      const group = new THREE.Group();
+      group.add(mesh);
+      group.add(edges);
+      modelGroup.add(group);
+      return { group, geometry };
+    };
+
+    const boxGroup = makeMesh(previewMesh.box);
+    meshRefs.current.box = boxGroup.group;
+    if (previewMesh.lid) {
+      const lidGroup = makeMesh(previewMesh.lid);
+      meshRefs.current.lid = lidGroup.group;
+    } else {
+      meshRefs.current.lid = undefined;
+    }
+
+    const grid = new THREE.GridHelper(200, 20, 0x8aa3b0, 0xd8d0c8);
+    grid.position.y = -0.001;
+    scene.add(grid);
+
+    scene.add(new THREE.AmbientLight(0xffffff, 0.6));
+    const key = new THREE.DirectionalLight(0xffffff, 0.9);
+    key.position.set(120, 160, 80);
+    scene.add(key);
+
+    modelGroup.rotation.x = -Math.PI / 2;
+    modelGroup.updateMatrixWorld();
+    const worldBox = new THREE.Box3().setFromObject(modelGroup);
+    if (worldBox.isEmpty() === false) {
+      const center = new THREE.Vector3();
+      worldBox.getCenter(center);
+      const offsetX = -center.x;
+      const offsetZ = -center.z;
+      const lift = -worldBox.min.y;
+      modelGroup.position.set(offsetX, lift, offsetZ);
+    }
+    modelGroup.updateMatrixWorld();
+
+    if (!didInitCamera.current) {
+      const box = new THREE.Box3().setFromObject(modelGroup);
+      if (box.isEmpty() === false) {
+        const center = new THREE.Vector3();
+        const size = new THREE.Vector3();
+        box.getCenter(center);
+        box.getSize(size);
+        const maxSize = Math.max(size.x, size.y, size.z, 1);
+        const distance = maxSize * 1.4;
+        camera.position.set(center.x + distance, center.y + distance, center.z + distance);
+        camera.lookAt(center);
+        controls.target.copy(center);
+        controls.update();
+        didInitCamera.current = true;
+      }
+    }
+
+    let frameId = 0;
+    const onFrame = () => {
+      controls.update();
+      renderer.render(scene, camera);
+      frameId = requestAnimationFrame(onFrame);
+    };
+    onFrame();
+
+    const handleResize = () => {
+      const newWidth = container.clientWidth;
+      const newHeight = 320;
+      renderer.setSize(newWidth, newHeight);
+      camera.aspect = newWidth / newHeight;
+      camera.updateProjectionMatrix();
+    };
+    window.addEventListener("resize", handleResize);
+
+    rendererRef.current = renderer;
+    sceneRef.current = scene;
+    cameraRef.current = camera;
+    controlsRef.current = controls;
+    modelGroupRef.current = modelGroup;
+
+    meshRefs.current.box.visible = showBox;
+    if (meshRefs.current.lid) {
+      meshRefs.current.lid.visible = showLid;
+    }
+
+    return () => {
+      window.removeEventListener("resize", handleResize);
+      cancelAnimationFrame(frameId);
+      controls.dispose();
+      if (renderer.domElement.parentElement === container) {
+        container.removeChild(renderer.domElement);
+      }
+      renderer.dispose();
+      meshMaterial.dispose();
+      edgeMaterial.dispose();
+      rendererRef.current = null;
+      sceneRef.current = null;
+      cameraRef.current = null;
+      controlsRef.current = null;
+      modelGroupRef.current = null;
+      meshRefs.current = {};
+    };
+  }, [previewMesh]);
+
+  useEffect(() => {
+    const box = meshRefs.current.box;
+    if (box) {
+      box.visible = showBox;
+    }
+    const lid = meshRefs.current.lid;
+    if (lid) {
+      lid.visible = showLid;
+    }
+  }, [showBox, showLid]);
 
   const set = <K extends keyof ShapeParams>(key: K, value: ShapeParams[K]) => {
     setParams((prev) => ({ ...prev, [key]: value }));
@@ -516,6 +693,41 @@ export default function App() {
               <p className="mt-3 text-xs text-ink/60">
                 Solid lines show the outer shell, inside cavity, lid outer, and lid inner.
               </p>
+            </div>
+            <div className="rounded-[28px] border border-sand/70 bg-white/70 p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-lg font-semibold text-ink">3D Preview</h2>
+                <div className="flex flex-wrap items-center gap-2 text-sm text-ink/70">
+                  <span className="text-xs uppercase tracking-[0.18em]">Show</span>
+                  <button
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] transition ${
+                      showBox ? "bg-ocean text-white" : "border border-sand/70"
+                    }`}
+                    onClick={() => setShowBox((prev) => !prev)}
+                    type="button"
+                  >
+                    Box
+                  </button>
+                  <button
+                    className={`rounded-full px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.18em] transition ${
+                      showLid ? "bg-ocean text-white" : "border border-sand/70"
+                    } ${!params.includeLid ? "opacity-40" : ""}`}
+                    onClick={() => setShowLid((prev) => !prev)}
+                    type="button"
+                    disabled={!params.includeLid}
+                  >
+                    Lid
+                  </button>
+                </div>
+              </div>
+              <div className="relative mt-4 h-80 rounded-2xl border border-sand/60 bg-porcelain/80">
+                <div ref={previewRef} className="h-full w-full" />
+                {!previewMesh && (
+                  <p className="absolute inset-0 flex items-center justify-center text-sm text-ink/60">
+                    Generate a STEP file to see the interactive preview.
+                  </p>
+                )}
+              </div>
             </div>
             <div className="rounded-[28px] border border-sand/70 bg-white/70 p-6">
               <h2 className="text-lg font-semibold text-ink">Outer Size</h2>
