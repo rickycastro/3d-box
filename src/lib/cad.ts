@@ -1179,8 +1179,8 @@ const buildLid = (
   const baseOuterRadius = params.includeInsideRadius
     ? params.insideRadius + wall
     : 0;
-  const innerRadius = baseOuterRadius + clearance;
-  const outerRadius = innerRadius + wall;
+  const innerRadius = params.includeInsideRadius ? baseOuterRadius + clearance : 0;
+  const outerRadius = params.includeInsideRadius ? innerRadius + wall : 0;
 
   const outer = buildRoundedRectPrism(
     oc,
