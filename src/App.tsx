@@ -26,6 +26,7 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [previewMesh, setPreviewMesh] = useState<PreviewMeshes | null>(null);
+  const [stepData, setStepData] = useState<Uint8Array | null>(null);
   const [showBox, setShowBox] = useState(true);
   const [showLid, setShowLid] = useState(true);
   const previewRef = useRef<HTMLDivElement | null>(null);
@@ -50,6 +51,11 @@ export default function App() {
     const search = paramsToSearch(params);
     const url = search.length ? `?${search}` : window.location.pathname;
     window.history.replaceState(null, "", url);
+  }, [params]);
+
+  useEffect(() => {
+    setPreviewMesh(null);
+    setStepData(null);
   }, [params]);
 
   const outerDims = useMemo(() => {
@@ -96,11 +102,12 @@ export default function App() {
     setError(null);
     setDebugLog([]);
     setPreviewMesh(null);
+    setStepData(null);
     try {
       await new Promise((resolve) => setTimeout(resolve, 0));
       const result = await buildStepAndPreviewMesh(params);
-      downloadBlob(result.step, "box.step");
       setPreviewMesh(result.mesh);
+      setStepData(result.step);
       if (window.location.search.includes("debug=1")) {
         const debug = await buildDebugInnerTool(params);
         if (debug) {
@@ -123,6 +130,15 @@ export default function App() {
       setStatus("error");
       setError(err instanceof Error ? err.message : "Generation failed.");
     }
+  };
+
+  const handleDownload = () => {
+    setError(null);
+    if (!stepData) {
+      setError("Generate a preview before downloading.");
+      return;
+    }
+    downloadBlob(stepData, "box.step");
   };
 
   useEffect(() => {
@@ -290,101 +306,6 @@ export default function App() {
     setParams((prev) => ({ ...prev, [key]: value }));
   };
 
-  const previewCorners = useMemo(() => {
-    const size = 180;
-    const wall =
-      effectiveParams.thicknessMode === "uniform"
-        ? effectiveParams.thickness
-        : effectiveParams.wallThickness;
-    const innerW = effectiveParams.insideWidth;
-    const innerD = effectiveParams.insideDepth;
-    const outerW = innerW + wall * 2;
-    const outerD = innerD + wall * 2;
-    const lidInnerW = outerW + effectiveParams.clearance * 2;
-    const lidInnerD = outerD + effectiveParams.clearance * 2;
-    const lidOuterW = lidInnerW + wall * 2;
-    const lidOuterD = lidInnerD + wall * 2;
-    const maxSpan = Math.max(lidOuterW, lidOuterD, outerW, outerD, 1);
-    const padding = 12;
-    const scale = (size - padding * 2) / maxSpan;
-    const outer = {
-      w: outerW * scale,
-      d: outerD * scale,
-      r: effectiveParams.includeInsideRadius
-        ? Math.min(
-            (effectiveParams.insideRadius + wall) * scale,
-            (Math.min(outerW, outerD) * scale) / 2
-          )
-        : 0
-    };
-    const inner = {
-      w: innerW * scale,
-      d: innerD * scale,
-      r: effectiveParams.includeInsideRadius
-        ? Math.min(
-            effectiveParams.insideRadius * scale,
-            (Math.min(innerW, innerD) * scale) / 2
-          )
-        : 0
-    };
-    const lidOuter = {
-      w: lidOuterW * scale,
-      d: lidOuterD * scale,
-      r: effectiveParams.includeInsideRadius
-        ? Math.min(
-            (effectiveParams.insideRadius + wall + effectiveParams.clearance + wall) * scale,
-            (Math.min(lidOuterW, lidOuterD) * scale) / 2
-          )
-        : 0
-    };
-    const lidInner = {
-      w: lidInnerW * scale,
-      d: lidInnerD * scale,
-      r: effectiveParams.includeInsideRadius
-        ? Math.min(
-            (effectiveParams.insideRadius + wall + effectiveParams.clearance) * scale,
-            (Math.min(lidInnerW, lidInnerD) * scale) / 2
-          )
-        : 0
-    };
-    const offsetX = (size - outer.w) / 2;
-    const offsetY = (size - outer.d) / 2;
-    return {
-      size,
-      outer,
-      inner,
-      lidOuter,
-      lidInner,
-      offsetX,
-      offsetY,
-      innerOffsetX: offsetX + wall * scale,
-      innerOffsetY: offsetY + wall * scale,
-      lidOffsetX: offsetX - (effectiveParams.clearance + wall) * scale,
-      lidOffsetY: offsetY - (effectiveParams.clearance + wall) * scale,
-      lidInnerOffsetX: offsetX - effectiveParams.clearance * scale,
-      lidInnerOffsetY: offsetY - effectiveParams.clearance * scale
-    };
-  }, [effectiveParams]);
-
-  const roundedPath = (x: number, y: number, w: number, h: number, r: number) => {
-    const radius = Math.max(0, Math.min(r, Math.min(w, h) / 2));
-    const x0 = x;
-    const y0 = y;
-    const x1 = x + w;
-    const y1 = y + h;
-    return [
-      `M ${x0 + radius} ${y0}`,
-      `L ${x1 - radius} ${y0}`,
-      `A ${radius} ${radius} 0 0 1 ${x1} ${y0 + radius}`,
-      `L ${x1} ${y1 - radius}`,
-      `A ${radius} ${radius} 0 0 1 ${x1 - radius} ${y1}`,
-      `L ${x0 + radius} ${y1}`,
-      `A ${radius} ${radius} 0 0 1 ${x0} ${y1 - radius}`,
-      `L ${x0} ${y0 + radius}`,
-      `A ${radius} ${radius} 0 0 1 ${x0 + radius} ${y0}`,
-      "Z"
-    ].join(" ");
-  };
 
   return (
     <div className="min-h-screen px-6 py-10 text-ink">
@@ -617,14 +538,26 @@ export default function App() {
                 />
               </div>
 
-              <button
-                className="mt-2 inline-flex w-full items-center justify-center rounded-2xl bg-ocean px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-ocean/90 disabled:opacity-60"
-                onClick={handleGenerate}
-                disabled={status === "loading"}
-                type="button"
-              >
-                {status === "loading" ? "Generating..." : "Download STEP"}
-              </button>
+              <div className="mt-2 grid gap-3 md:grid-cols-2">
+                <button
+                  className="inline-flex w-full items-center justify-center rounded-2xl bg-ocean px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-ocean/90 disabled:opacity-60"
+                  onClick={handleGenerate}
+                  disabled={status === "loading"}
+                  type="button"
+                >
+                  {status === "loading" ? "Generating..." : "Preview"}
+                </button>
+                {stepData && (
+                  <button
+                    className="inline-flex w-full items-center justify-center rounded-2xl bg-ocean px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-ocean/90 disabled:opacity-60"
+                    onClick={handleDownload}
+                    disabled={status === "loading"}
+                    type="button"
+                  >
+                    Download STEP
+                  </button>
+                )}
+              </div>
               {status === "error" && (
                 <p className="text-sm text-red-600">{error}</p>
               )}
@@ -632,68 +565,6 @@ export default function App() {
           </section>
 
           <aside className="flex flex-col gap-6">
-            <div className="rounded-[28px] border border-sand/70 bg-white/70 p-6">
-              <h2 className="text-lg font-semibold text-ink">Preview</h2>
-              <div className="mt-4 flex items-center justify-center">
-                <svg width={previewCorners.size} height={previewCorners.size}>
-                  {params.includeLid && (
-                    <>
-                    <path
-                      d={roundedPath(
-                        previewCorners.lidOffsetX,
-                        previewCorners.lidOffsetY,
-                        previewCorners.lidOuter.w,
-                        previewCorners.lidOuter.d,
-                        previewCorners.lidOuter.r
-                      )}
-                      fill="none"
-                      stroke={stroke}
-                      strokeWidth={strokeWidth}
-                    />
-                    <path
-                      d={roundedPath(
-                        previewCorners.lidInnerOffsetX,
-                        previewCorners.lidInnerOffsetY,
-                        previewCorners.lidInner.w,
-                        previewCorners.lidInner.d,
-                        previewCorners.lidInner.r
-                      )}
-                      fill="none"
-                      stroke={stroke}
-                      strokeWidth={strokeWidth}
-                    />
-                    </>
-                  )}
-                  <path
-                    d={roundedPath(
-                      previewCorners.offsetX,
-                      previewCorners.offsetY,
-                      previewCorners.outer.w,
-                      previewCorners.outer.d,
-                      previewCorners.outer.r
-                    )}
-                    fill="none"
-                    stroke={stroke}
-                    strokeWidth={strokeWidth}
-                  />
-                  <path
-                    d={roundedPath(
-                      previewCorners.innerOffsetX,
-                      previewCorners.innerOffsetY,
-                      previewCorners.inner.w,
-                      previewCorners.inner.d,
-                      previewCorners.inner.r
-                    )}
-                    fill="none"
-                    stroke={stroke}
-                    strokeWidth={strokeWidth}
-                  />
-                </svg>
-              </div>
-              <p className="mt-3 text-xs text-ink/60">
-                Solid lines show the outer shell, inside cavity, lid outer, and lid inner.
-              </p>
-            </div>
             <div className="rounded-[28px] border border-sand/70 bg-white/70 p-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <h2 className="text-lg font-semibold text-ink">3D Preview</h2>
@@ -724,7 +595,7 @@ export default function App() {
                 <div ref={previewRef} className="h-full w-full" />
                 {!previewMesh && (
                   <p className="absolute inset-0 flex items-center justify-center text-sm text-ink/60">
-                    Generate a STEP file to see the interactive preview.
+                    Click Preview to see the interactive model.
                   </p>
                 )}
               </div>
