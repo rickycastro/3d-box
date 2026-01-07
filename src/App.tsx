@@ -20,13 +20,13 @@ export default function App() {
   const [params, setParams] = useState<ShapeParams>(() =>
     parseParams(window.location.search)
   );
-  const [status, setStatus] = useState<"idle" | "loading" | "error">(
-    "idle"
-  );
   const [error, setError] = useState<string | null>(null);
   const [debugLog, setDebugLog] = useState<string[]>([]);
   const [previewMesh, setPreviewMesh] = useState<PreviewMeshes | null>(null);
   const [stepData, setStepData] = useState<Uint8Array | null>(null);
+  const [autoStatus, setAutoStatus] = useState<"idle" | "loading" | "error">(
+    "idle"
+  );
   const [showBox, setShowBox] = useState(true);
   const [showLid, setShowLid] = useState(true);
   const previewRef = useRef<HTMLDivElement | null>(null);
@@ -53,10 +53,6 @@ export default function App() {
     window.history.replaceState(null, "", url);
   }, [params]);
 
-  useEffect(() => {
-    setPreviewMesh(null);
-    setStepData(null);
-  }, [params]);
 
   const outerDims = useMemo(() => {
     const t =
@@ -97,49 +93,42 @@ export default function App() {
     };
   }, [effectiveParams, outerDims]);
 
-  const handleGenerate = async () => {
-    setStatus("loading");
-    setError(null);
-    setDebugLog([]);
-    setPreviewMesh(null);
-    setStepData(null);
-    try {
-      await new Promise((resolve) => setTimeout(resolve, 0));
-      const result = await buildStepAndPreviewMesh(params);
-      setPreviewMesh(result.mesh);
-      setStepData(result.step);
-      if (window.location.search.includes("debug=1")) {
-        const debug = await buildDebugInnerTool(params);
-        if (debug) {
-          downloadBlob(debug, "inner-tool.step");
-        }
-      }
-      setStatus("idle");
-    } catch (err) {
-      const win = window as unknown as {
-        __cadDebug?: Array<{ label: string; payload?: unknown; time: string }>;
-      };
-      if (win.__cadDebug?.length) {
-        const lines = win.__cadDebug.slice(-40).map((entry) => {
-          const payload =
-            entry.payload !== undefined ? ` ${JSON.stringify(entry.payload)}` : "";
-          return `${entry.time} ${entry.label}${payload}`;
-        });
-        setDebugLog(lines);
-      }
-      setStatus("error");
-      setError(err instanceof Error ? err.message : "Generation failed.");
-    }
-  };
-
   const handleDownload = () => {
     setError(null);
     if (!stepData) {
-      setError("Generate a preview before downloading.");
+      setError("Preview is still generating.");
       return;
     }
     downloadBlob(stepData, "box.step");
   };
+
+  useEffect(() => {
+    setAutoStatus("loading");
+    setError(null);
+    const handle = window.setTimeout(async () => {
+      try {
+        const result = await buildStepAndPreviewMesh(params);
+        setPreviewMesh(result.mesh);
+        setStepData(result.step);
+        setAutoStatus("idle");
+      } catch (err) {
+        const win = window as unknown as {
+          __cadDebug?: Array<{ label: string; payload?: unknown; time: string }>;
+        };
+        if (win.__cadDebug?.length) {
+          const lines = win.__cadDebug.slice(-40).map((entry) => {
+            const payload =
+              entry.payload !== undefined ? ` ${JSON.stringify(entry.payload)}` : "";
+            return `${entry.time} ${entry.label}${payload}`;
+          });
+          setDebugLog(lines);
+        }
+        setAutoStatus("error");
+        setError(err instanceof Error ? err.message : "Preview failed.");
+      }
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [params]);
 
   useEffect(() => {
     const container = previewRef.current;
@@ -541,24 +530,14 @@ export default function App() {
               <div className="mt-2 grid gap-3 md:grid-cols-2">
                 <button
                   className="inline-flex w-full items-center justify-center rounded-2xl bg-ocean px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-ocean/90 disabled:opacity-60"
-                  onClick={handleGenerate}
-                  disabled={status === "loading"}
+                  onClick={handleDownload}
+                  disabled={autoStatus === "loading"}
                   type="button"
                 >
-                  {status === "loading" ? "Generating..." : "Preview"}
+                  {autoStatus === "loading" ? "Updating..." : "Download STEP"}
                 </button>
-                {stepData && (
-                  <button
-                    className="inline-flex w-full items-center justify-center rounded-2xl bg-ocean px-6 py-3 text-sm font-semibold uppercase tracking-[0.2em] text-white transition hover:bg-ocean/90 disabled:opacity-60"
-                    onClick={handleDownload}
-                    disabled={status === "loading"}
-                    type="button"
-                  >
-                    Download STEP
-                  </button>
-                )}
               </div>
-              {status === "error" && (
+              {autoStatus === "error" && (
                 <p className="text-sm text-red-600">{error}</p>
               )}
             </div>
@@ -595,7 +574,7 @@ export default function App() {
                 <div ref={previewRef} className="h-full w-full" />
                 {!previewMesh && (
                   <p className="absolute inset-0 flex items-center justify-center text-sm text-ink/60">
-                    Click Preview to see the interactive model.
+                    Adjust inputs to update the preview.
                   </p>
                 )}
               </div>
