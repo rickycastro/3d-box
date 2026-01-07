@@ -213,16 +213,9 @@ export default function App() {
     <div className="min-h-screen px-6 py-10 text-ink">
       <div className="mx-auto flex max-w-6xl flex-col gap-10">
         <header className="flex flex-col gap-4">
-          <span className="text-xs uppercase tracking-[0.35em] text-ocean/60">
-            Local STEP Generator
-          </span>
           <h1 className="text-4xl font-semibold tracking-tight text-ink md:text-5xl">
             3D Box Builder
           </h1>
-          <p className="max-w-2xl text-base text-ink/70">
-            Tune the inside dimensions, wall strategy, and lid fit. Every input
-            syncs to the URL so a bookmark recreates the same model.
-          </p>
         </header>
 
         <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
@@ -463,15 +456,7 @@ export default function App() {
 
           <aside className="flex flex-col gap-6">
             <div className="rounded-[28px] border border-sand/70 bg-white/70 p-6">
-              <h2 className="text-lg font-semibold text-ink">Outer Size</h2>
-              <div className="mt-4 grid gap-2 text-sm text-ink/70">
-                <div>Width: {outerDims.width} mm</div>
-                <div>Depth: {outerDims.depth} mm</div>
-                <div>Height: {outerDims.height} mm</div>
-              </div>
-            </div>
-            <div className="rounded-[28px] border border-sand/70 bg-white/70 p-6">
-              <h2 className="text-lg font-semibold text-ink">Inside Corner Preview</h2>
+              <h2 className="text-lg font-semibold text-ink">Preview</h2>
               <div className="mt-4 flex items-center justify-center">
                 <svg width={previewCorners.size} height={previewCorners.size}>
                   {params.includeLid && (
@@ -532,6 +517,14 @@ export default function App() {
                 Solid lines show the outer shell, inside cavity, lid outer, and lid inner.
               </p>
             </div>
+            <div className="rounded-[28px] border border-sand/70 bg-white/70 p-6">
+              <h2 className="text-lg font-semibold text-ink">Outer Size</h2>
+              <div className="mt-4 grid gap-2 text-sm text-ink/70">
+                <div>Width: {outerDims.width} mm</div>
+                <div>Depth: {outerDims.depth} mm</div>
+                <div>Height: {outerDims.height} mm</div>
+              </div>
+            </div>
             {lidDims && (
               <div className="rounded-[28px] border border-sand/70 bg-white/70 p-6">
                 <h2 className="text-lg font-semibold text-ink">Lid Outer Size</h2>
@@ -542,15 +535,6 @@ export default function App() {
                 </div>
               </div>
             )}
-            <div className="rounded-[28px] border border-sand/70 bg-white/70 p-6 text-sm text-ink/70">
-              <p>
-                Inputs are stored in the URL query string for quick sharing and
-                bookmarking.
-              </p>
-              <p className="mt-3">
-                STEP export runs locally in your browser and never hits a server.
-              </p>
-            </div>
             {debugLog.length > 0 && (
               <div className="rounded-[28px] border border-sand/70 bg-white/70 p-6 text-xs text-ink/70">
                 <h3 className="text-sm font-semibold text-ink">Debug Log</h3>
