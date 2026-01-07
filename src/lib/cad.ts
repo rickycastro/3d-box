@@ -381,6 +381,21 @@ const normalizeCurveHandle = (oc: any, curve: any) => {
   return handle;
 };
 
+const normalizeTriangulationHandle = (triangulation: any) => {
+  if (!triangulation) return null;
+  const direct = triangulation.Nodes ? triangulation : null;
+  if (direct) return direct;
+  const candidate =
+    triangulation.get?.() ??
+    triangulation.GetHandle?.() ??
+    triangulation.Value?.() ??
+    triangulation;
+  if (candidate && typeof candidate.Nodes === "function") {
+    return candidate;
+  }
+  return null;
+};
+
 const toNumber = (value: any) => {
   if (typeof value === "number") return value;
   if (value && typeof value.valueOf === "function") {
@@ -1176,6 +1191,137 @@ export const buildStepFile = async (params: ShapeParams) => {
   const lid = buildLid(oc, effectiveParams, baseOuter);
   const compound = makeCompound(oc, [base, lid]);
   return writeStep(oc, compound);
+};
+
+export type PreviewMeshData = {
+  positions: number[];
+  indices: number[];
+};
+
+export type PreviewMeshes = {
+  box: PreviewMeshData;
+  lid?: PreviewMeshData;
+};
+
+const buildPreviewMesh = (oc: any, shape: any): PreviewMeshData => {
+  const MeshCtor =
+    getCtorByNames(oc, ["BRepMesh_IncrementalMesh_2", "BRepMesh_IncrementalMesh"]) ??
+    getCtor(oc, "BRepMesh_IncrementalMesh");
+  if (MeshCtor) {
+    try {
+      new MeshCtor(shape, 0.5, false, 0.5, true);
+    } catch {
+      // continue without explicit meshing
+    }
+  }
+
+  const ExplorerCtor =
+    getCtorByNames(oc, ["TopExp_Explorer_1", "TopExp_Explorer"]) ??
+    getCtor(oc, "TopExp_Explorer");
+  if (!ExplorerCtor) {
+    throw new Error("OpenCascade TopExp_Explorer not found.");
+  }
+  const LocationCtor =
+    getCtorByNames(oc, ["TopLoc_Location_1", "TopLoc_Location"]) ??
+    getCtor(oc, "TopLoc_Location");
+  if (!LocationCtor) {
+    throw new Error("OpenCascade TopLoc_Location not found.");
+  }
+
+  const faceEnum =
+    oc.TopAbs_ShapeEnum?.TopAbs_FACE ?? oc.TopAbs_FACE ?? oc.TopAbs_ShapeEnum?.TopAbs_Face;
+  const shapeEnum =
+    oc.TopAbs_ShapeEnum?.TopAbs_SHAPE ?? oc.TopAbs_SHAPE ?? oc.TopAbs_ShapeEnum?.TopAbs_Shape;
+  if (!faceEnum) {
+    throw new Error("OpenCascade TopAbs_ShapeEnum.TopAbs_FACE not found.");
+  }
+
+  const positions: number[] = [];
+  const indices: number[] = [];
+  let vertexOffset = 0;
+
+  const explorer = new ExplorerCtor();
+  const init = explorer.Init ?? explorer.Init_1 ?? explorer.Init_2;
+  if (typeof init !== "function") {
+    throw new Error("OpenCascade TopExp_Explorer.Init not available.");
+  }
+  init.call(explorer, shape, faceEnum, shapeEnum ?? faceEnum);
+
+  while (explorer.More()) {
+    const faceShape = explorer.Current ? explorer.Current() : explorer.Value();
+    const face = castToFace(oc, faceShape);
+    if (!face) {
+      explorer.Next();
+      continue;
+    }
+    const loc = new LocationCtor();
+    const triangulation =
+      oc.BRep_Tool?.Triangulation?.(face, loc) ??
+      oc.BRep_Tool?.Triangulation_1?.(face, loc) ??
+      oc.BRep_Tool?.Triangulation_2?.(face);
+    const tri = normalizeTriangulationHandle(triangulation);
+    if (tri) {
+      const nodes = tri.Nodes();
+      const triangles = tri.Triangles();
+      const lower = nodes.Lower();
+      const upper = nodes.Upper();
+      const indexMap = new Map<number, number>();
+      const hasTransform = typeof loc.IsIdentity === "function" ? !loc.IsIdentity() : false;
+      const trsf = hasTransform ? loc.Transformation() : null;
+
+      for (let i = lower; i <= upper; i += 1) {
+        let p = nodes.Value(i);
+        if (trsf && typeof p.Transformed === "function") {
+          p = p.Transformed(trsf);
+        }
+        positions.push(toNumber(p.X?.()), toNumber(p.Y?.()), toNumber(p.Z?.()));
+        indexMap.set(i, vertexOffset);
+        vertexOffset += 1;
+      }
+
+      const tLower = triangles.Lower();
+      const tUpper = triangles.Upper();
+      for (let i = tLower; i <= tUpper; i += 1) {
+        const tri = triangles.Value(i);
+        const a = indexMap.get(toNumber(tri.Value(1)));
+        const b = indexMap.get(toNumber(tri.Value(2)));
+        const c = indexMap.get(toNumber(tri.Value(3)));
+        if (a !== undefined && b !== undefined && c !== undefined) {
+          indices.push(a, b, c);
+        }
+      }
+    }
+    explorer.Next();
+  }
+
+  return { positions, indices };
+};
+
+export const buildStepAndPreviewMesh = async (params: ShapeParams) => {
+  const effectiveParams = normalizeParamsForCad(params);
+  const oc = await getOc();
+  const base = buildBox(oc, effectiveParams);
+
+  let shape = base;
+  let lid: any = null;
+  if (effectiveParams.includeLid) {
+    const { wall } = resolveThickness(effectiveParams);
+    const baseOuter = {
+      width: effectiveParams.insideWidth + wall * 2,
+      depth: effectiveParams.insideDepth + wall * 2
+    };
+    lid = buildLid(oc, effectiveParams, baseOuter);
+    shape = makeCompound(oc, [base, lid]);
+  }
+
+  const meshes: PreviewMeshes = {
+    box: buildPreviewMesh(oc, base)
+  };
+  if (lid) {
+    meshes.lid = buildPreviewMesh(oc, lid);
+  }
+  const step = writeStep(oc, shape);
+  return { step, mesh: meshes };
 };
 
 export const buildDebugInnerTool = async (params: ShapeParams) => {
