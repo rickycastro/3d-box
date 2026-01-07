@@ -10,7 +10,7 @@ import {
   TKSTEPBase,
   TKXSBase
 } from "opencascade.js";
-import type { ShapeParams } from "./params";
+import { normalizeParamsForCad, type ShapeParams } from "./params";
 
 let ocPromise: Promise<any> | null = null;
 
@@ -664,33 +664,6 @@ const makeBoxAt = (
   return maker.Shape();
 };
 
-const makeCylinder = (oc: any, radius: number, height: number) => {
-  const Ctor =
-    getCtorByNames(oc, [
-      "BRepPrimAPI_MakeCylinder_1",
-      "BRepPrimAPI_MakeCylinder_2",
-      "BRepPrimAPI_MakeCylinder"
-    ]) ?? getCtor(oc, "BRepPrimAPI_MakeCylinder");
-  if (!Ctor) throw new Error("OpenCascade cylinder constructor not found.");
-  const maker = new Ctor(radius, height);
-  return maker.Shape();
-};
-
-const makeCylinderAt = (
-  oc: any,
-  radius: number,
-  height: number,
-  x: number,
-  y: number,
-  z: number
-) => {
-  const cylinder = makeCylinder(oc, radius, height);
-  if (x === 0 && y === 0 && z === 0) {
-    return cylinder;
-  }
-  return translateShape(oc, cylinder, x, y, z);
-};
-
 const makeXYZ = (oc: any, x: number, y: number, z: number) => {
   const XYZCtor =
     getCtorByNames(oc, ["gp_XYZ_1", "gp_XYZ"]) ?? getCtor(oc, "gp_XYZ");
@@ -1123,20 +1096,6 @@ const buildBox = (oc: any, params: ShapeParams) => {
   return cutShape(oc, outerShell, inner);
 };
 
-const buildCylinder = (oc: any, params: ShapeParams) => {
-  const { wall, top, bottom } = resolveThickness(params);
-  const topThickness = 0;
-
-  const innerRadius = params.insideWidth / 2;
-  const outerRadius = innerRadius + wall;
-  const outerHeight = params.insideHeight + bottom + topThickness;
-
-  const inner = makeCylinderAt(oc, innerRadius, params.insideHeight, 0, 0, bottom);
-  const outer = makeCylinderAt(oc, outerRadius, outerHeight, 0, 0, 0);
-
-  return cutShape(oc, outer, inner);
-};
-
 const buildRoundedInnerTool = (oc: any, params: ShapeParams) => {
   const { wall, bottom } = resolveThickness(params);
   if (!params.includeInsideRadius) {
@@ -1166,15 +1125,6 @@ const buildLid = (
   const lidHeight = params.insideHeight + bottom + top;
   const outerWidth = innerWidth + wall * 2;
   const outerDepth = innerDepth + wall * 2;
-
-  if (params.shape === "cylinder") {
-    const innerRadius = innerWidth / 2;
-    const outerRadius = innerRadius + wall;
-    const outer = makeCylinderAt(oc, outerRadius, lidHeight, 0, 0, 0);
-    const inner = makeCylinderAt(oc, innerRadius, lidHeight - top, 0, 0, 0);
-    const lid = cutShape(oc, outer, inner);
-    return lid;
-  }
 
   const baseOuterRadius = params.includeInsideRadius
     ? params.insideRadius + wall
@@ -1207,33 +1157,34 @@ const buildLid = (
 };
 
 export const buildStepFile = async (params: ShapeParams) => {
+  const effectiveParams = normalizeParamsForCad(params);
   const oc = await getOc();
-  const base = params.shape === "cylinder" ? buildCylinder(oc, params) : buildBox(oc, params);
+  const base = buildBox(oc, effectiveParams);
 
-  if (!params.includeLid) {
+  if (!effectiveParams.includeLid) {
     return writeStep(oc, base);
   }
 
-  const { wall } = resolveThickness(params);
-  const baseOuterWidth = params.insideWidth + wall * 2;
-  const baseOuterDepth =
-    params.shape === "cylinder" ? baseOuterWidth : params.insideDepth + wall * 2;
+  const { wall } = resolveThickness(effectiveParams);
+  const baseOuterWidth = effectiveParams.insideWidth + wall * 2;
+  const baseOuterDepth = effectiveParams.insideDepth + wall * 2;
   const baseOuter = {
     width: baseOuterWidth,
     depth: baseOuterDepth
   };
 
-  const lid = buildLid(oc, params, baseOuter);
+  const lid = buildLid(oc, effectiveParams, baseOuter);
   const compound = makeCompound(oc, [base, lid]);
   return writeStep(oc, compound);
 };
 
 export const buildDebugInnerTool = async (params: ShapeParams) => {
-  if (params.shape !== "box" || !params.includeInsideRadius) {
+  const effectiveParams = normalizeParamsForCad(params);
+  if (effectiveParams.shape !== "box" || !effectiveParams.includeInsideRadius) {
     return null;
   }
   const oc = await getOc();
-  const tool = buildRoundedInnerTool(oc, params);
+  const tool = buildRoundedInnerTool(oc, effectiveParams);
   if (!tool) {
     return null;
   }

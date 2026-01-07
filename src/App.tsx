@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   type ShapeParams,
+  normalizeParamsForCad,
   parseParams,
   paramsToSearch,
   roundTo
@@ -23,6 +24,8 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [debugLog, setDebugLog] = useState<string[]>([]);
 
+  const effectiveParams = useMemo(() => normalizeParamsForCad(params), [params]);
+
   useEffect(() => {
     const onPopState = () => setParams(parseParams(window.location.search));
     window.addEventListener("popstate", onPopState);
@@ -36,13 +39,14 @@ export default function App() {
   }, [params]);
 
   const outerDims = useMemo(() => {
-    const t = params.thicknessMode === "uniform" ? params.thickness : null;
-    const wall = t ?? params.wallThickness;
-    const bottom = t ?? params.bottomThickness;
+    const t =
+      effectiveParams.thicknessMode === "uniform" ? effectiveParams.thickness : null;
+    const wall = t ?? effectiveParams.wallThickness;
+    const bottom = t ?? effectiveParams.bottomThickness;
     const top = 0;
-    const width = params.insideWidth + wall * 2;
-    const depth = params.insideDepth + wall * 2;
-    const height = params.insideHeight + bottom + top;
+    const width = effectiveParams.insideWidth + wall * 2;
+    const depth = effectiveParams.insideDepth + wall * 2;
+    const height = effectiveParams.insideHeight + bottom + top;
     return {
       width: roundTo(width),
       depth: roundTo(depth),
@@ -51,17 +55,18 @@ export default function App() {
       bottom,
       top
     };
-  }, [params]);
+  }, [effectiveParams]);
 
   const lidDims = useMemo(() => {
-    if (!params.includeLid) {
+    if (!effectiveParams.includeLid) {
       return null;
     }
-    const t = params.thicknessMode === "uniform" ? params.thickness : null;
-    const wall = t ?? params.wallThickness;
-    const top = t ?? params.topThickness;
-    const width = outerDims.width + params.clearance * 2 + wall * 2;
-    const depth = outerDims.depth + params.clearance * 2 + wall * 2;
+    const t =
+      effectiveParams.thicknessMode === "uniform" ? effectiveParams.thickness : null;
+    const wall = t ?? effectiveParams.wallThickness;
+    const top = t ?? effectiveParams.topThickness;
+    const width = outerDims.width + effectiveParams.clearance * 2 + wall * 2;
+    const depth = outerDims.depth + effectiveParams.clearance * 2 + wall * 2;
     const height = outerDims.height;
     return {
       width: roundTo(width),
@@ -70,7 +75,7 @@ export default function App() {
       wall,
       top
     };
-  }, [params, outerDims]);
+  }, [effectiveParams, outerDims]);
 
   const handleGenerate = async () => {
     setStatus("loading");
@@ -79,8 +84,7 @@ export default function App() {
     try {
       await new Promise((resolve) => setTimeout(resolve, 0));
       const data = await buildStepFile(params);
-      const name = params.shape === "cylinder" ? "cylinder" : "box";
-      downloadBlob(data, `${name}.step`);
+      downloadBlob(data, "box.step");
       if (window.location.search.includes("debug=1")) {
         const debug = await buildDebugInnerTool(params);
         if (debug) {
@@ -112,15 +116,15 @@ export default function App() {
   const previewCorners = useMemo(() => {
     const size = 180;
     const wall =
-      params.thicknessMode === "uniform"
-        ? params.thickness
-        : params.wallThickness;
-    const innerW = params.insideWidth;
-    const innerD = params.insideDepth;
+      effectiveParams.thicknessMode === "uniform"
+        ? effectiveParams.thickness
+        : effectiveParams.wallThickness;
+    const innerW = effectiveParams.insideWidth;
+    const innerD = effectiveParams.insideDepth;
     const outerW = innerW + wall * 2;
     const outerD = innerD + wall * 2;
-    const lidInnerW = outerW + params.clearance * 2;
-    const lidInnerD = outerD + params.clearance * 2;
+    const lidInnerW = outerW + effectiveParams.clearance * 2;
+    const lidInnerD = outerD + effectiveParams.clearance * 2;
     const lidOuterW = lidInnerW + wall * 2;
     const lidOuterD = lidInnerD + wall * 2;
     const maxSpan = Math.max(lidOuterW, lidOuterD, outerW, outerD, 1);
@@ -129,29 +133,41 @@ export default function App() {
     const outer = {
       w: outerW * scale,
       d: outerD * scale,
-      r: params.includeInsideRadius
-        ? Math.min((params.insideRadius + wall) * scale, Math.min(outerW, outerD) * scale / 2)
+      r: effectiveParams.includeInsideRadius
+        ? Math.min(
+            (effectiveParams.insideRadius + wall) * scale,
+            (Math.min(outerW, outerD) * scale) / 2
+          )
         : 0
     };
     const inner = {
       w: innerW * scale,
       d: innerD * scale,
-      r: params.includeInsideRadius
-        ? Math.min(params.insideRadius * scale, Math.min(innerW, innerD) * scale / 2)
+      r: effectiveParams.includeInsideRadius
+        ? Math.min(
+            effectiveParams.insideRadius * scale,
+            (Math.min(innerW, innerD) * scale) / 2
+          )
         : 0
     };
     const lidOuter = {
       w: lidOuterW * scale,
       d: lidOuterD * scale,
-      r: params.includeInsideRadius
-        ? Math.min((params.insideRadius + wall + params.clearance + wall) * scale, Math.min(lidOuterW, lidOuterD) * scale / 2)
+      r: effectiveParams.includeInsideRadius
+        ? Math.min(
+            (effectiveParams.insideRadius + wall + effectiveParams.clearance + wall) * scale,
+            (Math.min(lidOuterW, lidOuterD) * scale) / 2
+          )
         : 0
     };
     const lidInner = {
       w: lidInnerW * scale,
       d: lidInnerD * scale,
-      r: params.includeInsideRadius
-        ? Math.min((params.insideRadius + wall + params.clearance) * scale, Math.min(lidInnerW, lidInnerD) * scale / 2)
+      r: effectiveParams.includeInsideRadius
+        ? Math.min(
+            (effectiveParams.insideRadius + wall + effectiveParams.clearance) * scale,
+            (Math.min(lidInnerW, lidInnerD) * scale) / 2
+          )
         : 0
     };
     const offsetX = (size - outer.w) / 2;
@@ -166,12 +182,12 @@ export default function App() {
       offsetY,
       innerOffsetX: offsetX + wall * scale,
       innerOffsetY: offsetY + wall * scale,
-      lidOffsetX: offsetX - (params.clearance + wall) * scale,
-      lidOffsetY: offsetY - (params.clearance + wall) * scale,
-      lidInnerOffsetX: offsetX - params.clearance * scale,
-      lidInnerOffsetY: offsetY - params.clearance * scale
+      lidOffsetX: offsetX - (effectiveParams.clearance + wall) * scale,
+      lidOffsetY: offsetY - (effectiveParams.clearance + wall) * scale,
+      lidInnerOffsetX: offsetX - effectiveParams.clearance * scale,
+      lidInnerOffsetY: offsetY - effectiveParams.clearance * scale
     };
-  }, [params]);
+  }, [effectiveParams]);
 
   const roundedPath = (x: number, y: number, w: number, h: number, r: number) => {
     const radius = Math.max(0, Math.min(r, Math.min(w, h) / 2));
@@ -201,7 +217,7 @@ export default function App() {
             Local STEP Generator
           </span>
           <h1 className="text-4xl font-semibold tracking-tight text-ink md:text-5xl">
-            3D Box & Cylinder Builder
+            3D Box Builder
           </h1>
           <p className="max-w-2xl text-base text-ink/70">
             Tune the inside dimensions, wall strategy, and lid fit. Every input
@@ -212,34 +228,6 @@ export default function App() {
         <div className="grid gap-8 lg:grid-cols-[1.1fr_0.9fr]">
           <section className="rounded-[32px] border border-sand/80 bg-white/70 p-8 shadow-soft">
             <div className="grid gap-6">
-              <div className="grid gap-3">
-                <label className={labelClass}>Shape</label>
-                <div className="flex flex-wrap gap-3">
-                  <button
-                    className={`rounded-full px-5 py-2 text-sm font-medium transition ${
-                      params.shape === "box"
-                        ? "bg-ocean text-white"
-                        : "border border-sand/80 text-ink"
-                    }`}
-                    onClick={() => set("shape", "box")}
-                    type="button"
-                  >
-                    Box
-                  </button>
-                  <button
-                    className={`rounded-full px-5 py-2 text-sm font-medium transition ${
-                      params.shape === "cylinder"
-                        ? "bg-ocean text-white"
-                        : "border border-sand/80 text-ink"
-                    }`}
-                    onClick={() => set("shape", "cylinder")}
-                    type="button"
-                  >
-                    Cylinder
-                  </button>
-                </div>
-              </div>
-
               <div className="grid gap-3">
                 <label className={labelClass}>Lid</label>
                 <div className="flex flex-wrap gap-3">
@@ -273,11 +261,7 @@ export default function App() {
 
               <div className="grid gap-4 md:grid-cols-3">
                 <div className="grid gap-2">
-                  <label className={labelClass}>
-                    {params.shape === "cylinder"
-                      ? "Inside Diameter (mm)"
-                      : "Inside Width (mm)"}
-                  </label>
+                  <label className={labelClass}>Inside Width (mm)</label>
                   <input
                     className={numberInput}
                     type="number"
@@ -292,14 +276,11 @@ export default function App() {
                 <div className="grid gap-2">
                   <label className={labelClass}>Inside Depth (mm)</label>
                   <input
-                    className={`${numberInput} ${
-                      params.shape === "cylinder" ? "opacity-50" : ""
-                    }`}
+                    className={numberInput}
                     type="number"
                     min={1}
                     step={0.1}
                     value={params.insideDepth}
-                    disabled={params.shape === "cylinder"}
                     onChange={(event) =>
                       set("insideDepth", Number(event.target.value))
                     }

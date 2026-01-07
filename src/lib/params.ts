@@ -1,4 +1,4 @@
-export type ShapeType = "box" | "cylinder";
+export type ShapeType = "box";
 export type ThicknessMode = "uniform" | "custom";
 
 export type ShapeParams = {
@@ -51,11 +51,10 @@ export const roundTo = (value: number, digits = 3) => {
 
 export const parseParams = (search: string): ShapeParams => {
   const query = new URLSearchParams(search);
-  const shape = query.get("shape");
   const thicknessMode = query.get("tmode");
 
   return {
-    shape: shape === "cylinder" ? "cylinder" : defaultParams.shape,
+    shape: defaultParams.shape,
     includeLid: readBoolean(query.get("lid"), defaultParams.includeLid),
     insideWidth: readNumber(query.get("w"), defaultParams.insideWidth),
     insideDepth: readNumber(query.get("d"), defaultParams.insideDepth),
@@ -83,9 +82,7 @@ export const parseParams = (search: string): ShapeParams => {
 
 export const paramsToSearch = (params: ShapeParams) => {
   const query = new URLSearchParams();
-  if (params.shape !== defaultParams.shape) {
-    query.set("shape", params.shape);
-  }
+  query.delete("shape");
   if (params.includeLid !== defaultParams.includeLid) {
     query.set("lid", params.includeLid ? "1" : "0");
   }
@@ -128,3 +125,5 @@ export const paramsToSearch = (params: ShapeParams) => {
 
   return query.toString();
 };
+
+export const normalizeParamsForCad = (params: ShapeParams): ShapeParams => params;
