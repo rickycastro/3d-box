@@ -5,6 +5,7 @@
 import {
   AmbientLight,
   Box3,
+  BufferAttribute,
   BufferGeometry,
   Color,
   DirectionalLight,
@@ -92,7 +93,20 @@ export class SceneManager {
     if (this.disposed) return;
     // syncGeometries updates in place when passed the previous geometries.
     const prev = this.parts.map((p) => ({ faces: p.faces, lines: p.lines }));
-    const synced = syncGeometries([build.tray as any, build.lid as any], prev);
+    // The helper calls geometry.setIndex(triangles); three only wraps a *plain*
+    // array in a BufferAttribute — a raw Uint32Array (which we use for transfer)
+    // would be assigned as the index directly, leaving index.array undefined and
+    // crashing the renderer. So pre-wrap the index ourselves.
+    const meshes = [build.tray, build.lid].map((m) => ({
+      faces: {
+        vertices: m.faces.vertices,
+        normals: m.faces.normals,
+        triangles: new BufferAttribute(m.faces.triangles, 1),
+        faceGroups: m.faces.faceGroups,
+      },
+      edges: m.edges,
+    }));
+    const synced = syncGeometries(meshes as any, prev);
 
     if (this.parts.length === 0) {
       const faceMat = new MeshStandardMaterial({
