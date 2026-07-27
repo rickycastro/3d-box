@@ -153,3 +153,7 @@ Icon
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Reference sample models / screenshots — reverse-engineering fixtures,
+# intentionally NOT tracked (the samples had errors; see plan doc).
+sample-models/
