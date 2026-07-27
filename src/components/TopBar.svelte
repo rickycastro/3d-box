@@ -13,7 +13,7 @@
 </script>
 
 <header class="topbar">
-  <h1>Box Configurator</h1>
+  <h1>3D Box Maker</h1>
   <button class="copy" onclick={copyLink}>
     {copied ? 'Copied!' : 'Copy link'}
   </button>
