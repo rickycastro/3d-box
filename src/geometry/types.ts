@@ -87,6 +87,17 @@ export const PARAM_ORDER: ParamKey[] = [
   'thumbDiameter',
 ];
 
+/**
+ * Base export filename (no extension), shared by the worker and the UI so they
+ * never drift. Divisions are appended in parens only when > 1, mirroring the
+ * sample naming convention (e.g. box-tray-w75(4)-l50(2)-h25).
+ */
+export function exportBaseName(p: SnapBoxParams, part: 'tray' | 'lid'): string {
+  const wDiv = p.wDivisions > 1 ? `(${p.wDivisions})` : '';
+  const lDiv = p.lDivisions > 1 ? `(${p.lDivisions})` : '';
+  return `box-${part}-w${p.w}${wDiv}-l${p.l}${lDiv}-h${p.h}`;
+}
+
 export interface ValidationError {
   /** Param field(s) implicated by this error (for UI highlighting). */
   keys: ParamKey[];

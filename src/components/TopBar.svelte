@@ -13,7 +13,7 @@
 </script>
 
 <header class="topbar">
-  <h1>Snap-Box Configurator</h1>
+  <h1>Box Configurator</h1>
   <button class="copy" onclick={copyLink}>
     {copied ? 'Copied!' : 'Copy link'}
   </button>
@@ -36,16 +36,17 @@
     letter-spacing: -0.01em;
   }
   .copy {
-    background: var(--color-accent);
-    color: #fff;
-    border: none;
-    border-radius: 999px;
-    padding: 7px 16px;
+    background: #fff;
+    color: var(--color-text);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    padding: 6px 14px;
     font-size: 12px;
-    font-weight: 600;
-    transition: background 0.12s;
+    font-weight: 500;
+    transition: background 0.12s, border-color 0.12s;
   }
   .copy:hover {
-    background: var(--color-accent-hover);
+    background: #f5f5f5;
+    border-color: #d5d5d5;
   }
 </style>

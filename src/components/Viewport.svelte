@@ -81,7 +81,10 @@
   {/if}
 
   {#if $building && !$booting}
-    <div class="busy" title="Rebuilding…"></div>
+    <div class="busy">
+      <span class="busy-spinner"></span>
+      Updating…
+    </div>
   {/if}
 </div>
 
@@ -139,9 +142,23 @@
   .busy {
     position: absolute;
     top: 12px;
-    left: 12px;
-    width: 12px;
-    height: 12px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--color-panel);
+    border: 1px solid var(--color-border);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    box-shadow: var(--shadow-panel);
+  }
+  .busy-spinner {
+    width: 13px;
+    height: 13px;
     border: 2px solid var(--color-border);
     border-top-color: var(--color-accent);
     border-radius: 50%;

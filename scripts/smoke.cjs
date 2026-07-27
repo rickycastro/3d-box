@@ -109,7 +109,7 @@ const blobSize = (b) => (b && typeof b.size === 'number' ? b.size : 0);
     lid.delete();
   }
 
-  console.log('\n[square 40x40x30 → all 4 walls]');
+  console.log('\n[square 40x40x30 → tray 4 walls, lid 2 walls]');
   {
     const { tray, lid } = buildSnapBox({ w: 40, l: 40, h: 30, wDivisions: 1, lDivisions: 1, ...base });
     checkBox('tray', tray, [-21.67, -21.67, 0], [21.67, 21.67, 31.67]);

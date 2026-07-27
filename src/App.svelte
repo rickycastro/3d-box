@@ -106,6 +106,7 @@
     }
     /* On mobile the panel is full-width; let the inner card fill it. */
     .panel-scroll :global(.panel) {
+      --pad-x: 0px;
       width: 100%;
       border: none;
       box-shadow: none;

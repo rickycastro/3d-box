@@ -147,12 +147,17 @@ export function buildSnapBox(params: SnapBoxParams): SnapBoxSolids {
   const SNAP_LENGTH = thumbDiameter;
   const R_THUMB = thumbDiameter / 2;
 
-  // Features live on BOTH width-edge walls (±Y, span = w): the thumb notch and
-  // one male ridge on each lid wall, two female indents on each tray wall (4
-  // total) — confirmed by the sample STEP files (12 conical surfaces = 4 tray
-  // indents + 2 lid ridges, each with 2 tapered ends). A square footprint is
-  // orientation-ambiguous, so it gets all four walls.
-  const walls: Wall[] = w === l ? [WALL_PX, WALL_NX, WALL_PY, WALL_NY] : [WALL_PY, WALL_NY];
+  // Feature walls, per part:
+  //  - Rectangular (w ≠ l): both parts use the two width-edge walls (±Y, span w)
+  //    — 2 female indents per tray wall (4 total), 1 male ridge + thumb notch per
+  //    lid wall. Confirmed by the sample STEP files (12 conical surfaces = 4 tray
+  //    indents + 2 lid ridges, each with 2 tapered ends).
+  //  - Square (w === l): the TRAY gets indents on all four walls (so the lid can
+  //    snap on in any 90° rotation), but the LID keeps a single set of ridges +
+  //    thumbholes on two opposite walls. The lid's pair always lands on a tray
+  //    wall that has matching indents, whatever the rotation.
+  const trayWalls: Wall[] = w === l ? [WALL_PX, WALL_NX, WALL_PY, WALL_NY] : [WALL_PY, WALL_NY];
+  const lidWalls: Wall[] = [WALL_PY, WALL_NY];
 
   const tray = buildTray();
   const lid = buildLid();
@@ -215,7 +220,7 @@ export function buildSnapBox(params: SnapBoxParams): SnapBoxSolids {
     // follow the correct rule below and intentionally do NOT reproduce that bug.
     const zBottom = t + sd;
     const zTop = exH - (t + sd); // = h - snapDepth
-    for (const wall of walls) {
+    for (const wall of trayWalls) {
       const faceHalf = wall.axis === 'X' ? extHalfX : extHalfY;
       for (const z of [zTop, zBottom]) {
         const tool = placeOnWall(
@@ -264,7 +269,7 @@ export function buildSnapBox(params: SnapBoxParams): SnapBoxSolids {
 
     // 3. Thumb notch(es): semicircular scallop on the bottom opening edge of the
     //    target wall's midpoint. Cylinder axis == wall normal, full-thickness.
-    for (const wall of walls) {
+    for (const wall of lidWalls) {
       const innerHalf = wall.axis === 'X' ? innerHalfX : innerHalfY;
       const outerHalf = wall.axis === 'X' ? outerHalfX : outerHalfY;
       const cutter = makeThumbCutter(wall, innerHalf, outerHalf, R_THUMB);
@@ -277,7 +282,7 @@ export function buildSnapBox(params: SnapBoxParams): SnapBoxSolids {
     //    indent in the flipped/alternate nesting mode). Lid and tray share base
     //    z=0, so this z is identical in both frames.
     const zRidge = h - sd;
-    for (const wall of walls) {
+    for (const wall of lidWalls) {
       const faceHalf = wall.axis === 'X' ? innerHalfX : innerHalfY;
       const ridge = placeOnWall(
         makeSnapSolid(SNAP_LENGTH, sd),

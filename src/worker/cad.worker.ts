@@ -10,7 +10,7 @@ import opencascadeWasmUrl from 'replicad-opencascadejs/src/replicad_single.wasm?
 import { setOC } from 'replicad';
 
 import { buildSnapBox, type SnapBoxSolids } from '../geometry/buildSnapBox';
-import type { SnapBoxParams } from '../geometry/types';
+import { exportBaseName, type SnapBoxParams } from '../geometry/types';
 
 // ---- Message protocol -------------------------------------------------------
 
@@ -156,27 +156,16 @@ function handleBuild(req: BuildRequest) {
 function handleExport(req: ExportRequest) {
   const solids = getSolids(req.params);
   const solid = req.part === 'tray' ? solids.tray : solids.lid;
-  const p = req.params;
-  const dims = `w${p.w}-l${p.l}-h${p.h}`;
+  const base = exportBaseName(req.params, req.part);
   if (req.format === 'step') {
     const blob = solid.blobSTEP();
-    post({
-      type: 'export',
-      requestId: req.requestId,
-      blob,
-      filename: `snapbox-${req.part}-${dims}.step`,
-    });
+    post({ type: 'export', requestId: req.requestId, blob, filename: `${base}.step` });
   } else {
     const blob = solid.blobSTL({
       tolerance: MESH_TOLERANCE,
       angularTolerance: MESH_ANGULAR_TOLERANCE,
     });
-    post({
-      type: 'export',
-      requestId: req.requestId,
-      blob,
-      filename: `snapbox-${req.part}-${dims}.stl`,
-    });
+    post({ type: 'export', requestId: req.requestId, blob, filename: `${base}.stl` });
   }
 }
 

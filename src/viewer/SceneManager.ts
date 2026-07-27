@@ -25,7 +25,7 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { syncGeometries } from 'replicad-threejs-helper';
 import type { BuildResult } from '../worker/workerClient';
 
-const BG = 0xf0f0f0;
+const BG = 0xf5f5f5;
 const GAP = 8; // mm gap between tray and lid in the side-by-side layout
 
 interface PartView {
