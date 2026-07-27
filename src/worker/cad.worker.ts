@@ -84,8 +84,12 @@ function ensureOC(): Promise<void> {
   if (!ocReady) {
     ocReady = initOpenCascade({
       locateFile: () => opencascadeWasmUrl,
-    }).then((OC: unknown) => {
+    }).then((OC: any) => {
       setOC(OC as never);
+      // Omit per-edge parametric curves (pcurves) from STEP output. They are
+      // redundant — conformant readers recompute them — and roughly halve the
+      // file size (the snap lofts otherwise emit verbose B-spline pcurves).
+      OC.Interface_Static.SetIVal('write.surfacecurve.mode', 0);
     });
   }
   return ocReady;
