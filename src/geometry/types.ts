@@ -19,11 +19,20 @@ export interface SnapBoxParams {
   thickness: number;
   /** Lid/tray fit gap; also the female-pocket oversize offset, mm. */
   clearance: number;
-  /** Thumb-notch diameter, mm. Also drives SNAP_LENGTH. */
+  /** Thumb-notch diameter, mm. Also drives SNAP_LENGTH (independent of `notch`). */
   thumbDiameter: number;
+  /** Cut the finger scallop(s) into the lid. */
+  notch: boolean;
+  /** Build the male ridge + female snap pockets that latch the lid to the tray. */
+  snap: boolean;
 }
 
 export type ParamKey = keyof SnapBoxParams;
+
+/** Param keys backed by a numeric Range field (everything except booleans). */
+export type NumericParamKey = Exclude<ParamKey, BoolParamKey>;
+/** Boolean feature-toggle keys. */
+export type BoolParamKey = 'notch' | 'snap';
 
 export const DEFAULTS: SnapBoxParams = {
   w: 75,
@@ -35,6 +44,8 @@ export const DEFAULTS: SnapBoxParams = {
   thickness: 1.67,
   clearance: 0.2,
   thumbDiameter: 20,
+  notch: true,
+  snap: false,
 };
 
 /** Short URL query keys, one per param. */
@@ -48,6 +59,8 @@ export const URL_KEYS: Record<ParamKey, string> = {
   thickness: 'thickness',
   clearance: 'clearance',
   thumbDiameter: 'thumbDiameter',
+  notch: 'notch',
+  snap: 'snap',
 };
 
 export interface Range {
@@ -70,19 +83,19 @@ export interface Range {
 // Tier-1 HARD per-field bounds. Values outside these are never meaningful and
 // are silently clamped in the store. Cross-parameter compatibility (tier 2)
 // lives in validate(), NOT here.
-export const RANGES: Record<ParamKey, Range> = {
-  w: { min: 1, max: 300, step: 0.01, bumpStep: 1, label: 'Width', unit: 'mm' },
-  l: { min: 1, max: 300, step: 0.01, bumpStep: 1, label: 'Length', unit: 'mm' },
-  h: { min: 1, max: 300, step: 0.01, bumpStep: 1, label: 'Height', unit: 'mm' },
+export const RANGES: Record<NumericParamKey, Range> = {
+  w: { min: 1, max: 300, step: 0.01, bumpStep: 1, label: 'Inner width', unit: 'mm' },
+  l: { min: 1, max: 300, step: 0.01, bumpStep: 1, label: 'Inner length', unit: 'mm' },
+  h: { min: 1, max: 300, step: 0.01, bumpStep: 1, label: 'Inner height', unit: 'mm' },
   wDivisions: { min: 1, max: 50, step: 1, integer: true, label: 'Width divisions' },
   lDivisions: { min: 1, max: 50, step: 1, integer: true, label: 'Length divisions' },
   snapDepth: { min: 0.2, max: 2, step: 0.05, label: 'Snap depth', unit: 'mm' },
   thickness: { min: 0.8, max: 5, step: 0.01, label: 'Wall thickness', unit: 'mm' },
   clearance: { min: 0.05, max: 1, step: 0.01, label: 'Clearance', unit: 'mm' },
-  thumbDiameter: { min: 10, max: 40, step: 0.5, label: 'Thumb notch', unit: 'mm' },
+  thumbDiameter: { min: 10, max: 40, step: 0.5, label: 'Notch diameter', unit: 'mm' },
 };
 
-export const PARAM_ORDER: ParamKey[] = [
+export const PARAM_ORDER: NumericParamKey[] = [
   'w',
   'l',
   'h',

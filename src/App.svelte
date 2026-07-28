@@ -9,7 +9,7 @@
 
 <div class="app">
   <TopBar />
-  <main>
+  <main class:sheet-open={sheetOpen}>
     <div class="viewport-wrap">
       <Viewport />
     </div>
@@ -65,21 +65,34 @@
 
   /* Mobile: bottom sheet with a drag handle. */
   @media (max-width: 768px) {
+    /* The open sheet occupies the bottom `--sheet-h` of the stage; the viewport
+       shrinks to the space above it (below) so the model is never hidden. */
+    main {
+      --sheet-h: 50%;
+    }
     .panel-host {
       top: auto;
       left: 0;
       right: 0;
       bottom: 0;
+      height: var(--sheet-h);
       background: var(--color-panel);
       border-top: 1px solid var(--color-border);
       border-radius: 14px 14px 0 0;
       box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.1);
       transition: transform 0.25s ease;
       transform: translateY(calc(100% - 44px));
-      max-height: 75%;
     }
     .panel-host.open {
       transform: translateY(0);
+    }
+    /* Reserve the sheet's space so the 3D canvas reframes above it (the
+       viewport's ResizeObserver refits the model to the new, shorter canvas). */
+    .viewport-wrap {
+      transition: bottom 0.25s ease;
+    }
+    main.sheet-open .viewport-wrap {
+      bottom: var(--sheet-h);
     }
     .panel-host .handle {
       display: block;

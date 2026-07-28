@@ -11,6 +11,7 @@ import {
   MIN_POCKET_WALL_MARGIN_MM,
   PRINT_VOLUME_MM,
   RANGES,
+  type NumericParamKey,
   type ParamKey,
   type SnapBoxParams,
   type ValidationError,
@@ -22,7 +23,7 @@ const round = (v: number, step: number) =>
 /** Clamp every field to its hard bound; coerce non-finite to the default-safe min. */
 export function clamp(params: SnapBoxParams): SnapBoxParams {
   const out = { ...params };
-  for (const key of Object.keys(RANGES) as ParamKey[]) {
+  for (const key of Object.keys(RANGES) as NumericParamKey[]) {
     const r = RANGES[key];
     let v = out[key];
     if (!Number.isFinite(v)) v = r.min;
@@ -31,6 +32,8 @@ export function clamp(params: SnapBoxParams): SnapBoxParams {
     v = Math.min(r.max, Math.max(r.min, v));
     out[key] = v;
   }
+  out.notch = params.notch === true; // coerce any non-boolean (e.g. bad URL) to false
+  out.snap = params.snap === true;
   return out;
 }
 
@@ -38,7 +41,7 @@ const fmt = (v: number) => (Math.round(v * 100) / 100).toString();
 
 /** Tier-2 cross-parameter compatibility checks. Empty array == buildable. */
 export function validate(params: SnapBoxParams): ValidationError[] {
-  const { w, l, h, wDivisions, lDivisions, snapDepth, thickness, clearance, thumbDiameter } =
+  const { w, l, h, wDivisions, lDivisions, snapDepth, thickness, clearance, thumbDiameter, notch, snap } =
     params;
   const t = thickness;
   const c = clearance;
@@ -83,24 +86,31 @@ export function validate(params: SnapBoxParams): ValidationError[] {
     });
   }
 
-  // 3. Thumb-notch fit. The notch runs along the span of the feature wall. Per
-  //    the wall-selection rule the default feature wall spans `l` (for a square
-  //    footprint span == w == l, so `l` is still correct). The female pockets
-  //    (widest feature, SNAP_LENGTH + 2*clearance) plus corner-fillet margin
-  //    (WALL each end) must fit within that span.
-  const span = l;
-  const needed = thumbDiameter + 2 * c + 2 * t;
-  if (needed > span) {
-    errors.push({
-      keys: ['thumbDiameter', 'l'],
-      message: `Thumb notch needs ${fmt(needed)}mm of wall but length span is only ${fmt(span)}mm — reduce the thumb notch or increase length.`,
-    });
+  // 3. Feature-wall fit. The notch and the female snap pockets both run along the
+  //    span of the feature wall (spans `l` per the wall-selection rule; for a
+  //    square footprint span == w == l, so `l` is still correct). The widest
+  //    in-plane feature — the pockets at SNAP_LENGTH + 2*clearance when snaps are
+  //    on, else the notch at SNAP_LENGTH — plus corner-fillet margin (WALL each
+  //    end) must fit within that span. Only relevant when a feature exists there.
+  if (snap || notch) {
+    const span = l;
+    const needed = thumbDiameter + (snap ? 2 * c : 0) + 2 * t;
+    if (needed > span) {
+      // Only implicate thumbDiameter when its field is visible (notch on).
+      const keys: ParamKey[] = notch ? ['thumbDiameter', 'l'] : ['l'];
+      const what = snap ? 'Snap pockets need' : 'Thumb notch needs';
+      const fix = notch ? 'increase length or reduce notch diameter' : 'increase length';
+      errors.push({
+        keys,
+        message: `${what} ${fmt(needed)}mm of wall but length span is only ${fmt(span)}mm — ${fix}.`,
+      });
+    }
   }
 
   // 4. Snap depth vs wall thickness. Female pocket is cut to snapDepth+clearance;
   //    must leave a printable wall behind it (strict, with margin).
   const pocketDepth = snapDepth + c;
-  if (pocketDepth > t - MIN_POCKET_WALL_MARGIN_MM) {
+  if (snap && pocketDepth > t - MIN_POCKET_WALL_MARGIN_MM) {
     errors.push({
       keys: ['snapDepth', 'thickness'],
       message: `Snap pocket depth ${fmt(pocketDepth)}mm leaves too little wall (needs ${fmt(t - MIN_POCKET_WALL_MARGIN_MM)}mm max) — reduce snap depth or increase wall thickness.`,
@@ -113,7 +123,7 @@ export function validate(params: SnapBoxParams): ValidationError[] {
   //    Short boxes make these overlap; require a positive gap between them.
   const snapBottomTop = 2 * t + 2 * snapDepth; // upper edge of the bottom indent
   const snapTopBottom = h + t - 2 * t - 2 * snapDepth; // lower edge of the top indent
-  if (snapBottomTop >= snapTopBottom) {
+  if (snap && snapBottomTop >= snapTopBottom) {
     const minH = 3 * t + 4 * snapDepth; // h must exceed this for a positive gap
     errors.push({
       keys: ['h', 'snapDepth', 'thickness'],

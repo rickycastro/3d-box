@@ -10,6 +10,8 @@ import { derived, writable, get } from 'svelte/store';
 import {
   DEFAULTS,
   URL_KEYS,
+  type BoolParamKey,
+  type NumericParamKey,
   type ParamKey,
   type SnapBoxParams,
 } from '../geometry/types';
@@ -22,8 +24,12 @@ export function parseParamsFromUrl(search: string): SnapBoxParams {
   for (const key of Object.keys(URL_KEYS) as ParamKey[]) {
     const raw = q.get(URL_KEYS[key]);
     if (raw === null) continue;
-    const n = Number(raw);
-    if (Number.isFinite(n)) merged[key] = n;
+    if (typeof DEFAULTS[key] === 'boolean') {
+      (merged[key] as boolean) = raw === '1' || raw === 'true';
+    } else {
+      const n = Number(raw);
+      if (Number.isFinite(n)) (merged[key] as number) = n;
+    }
   }
   return clamp(merged);
 }
@@ -31,7 +37,8 @@ export function parseParamsFromUrl(search: string): SnapBoxParams {
 export function paramsToSearch(params: SnapBoxParams): string {
   const q = new URLSearchParams();
   for (const key of Object.keys(URL_KEYS) as ParamKey[]) {
-    q.set(URL_KEYS[key], String(params[key]));
+    const v = params[key];
+    q.set(URL_KEYS[key], typeof v === 'boolean' ? (v ? '1' : '0') : String(v));
   }
   return q.toString();
 }
@@ -45,9 +52,13 @@ function createParamsStore() {
 
   return {
     subscribe: store.subscribe,
-    /** Set one field (clamped). */
-    setField(key: ParamKey, value: number) {
+    /** Set one numeric field (clamped). */
+    setField(key: NumericParamKey, value: number) {
       store.update((p) => clamp({ ...p, [key]: value }));
+    },
+    /** Toggle a boolean feature (notch / snap) on/off. */
+    setToggle(key: BoolParamKey, on: boolean) {
+      store.update((p) => clamp({ ...p, [key]: on }));
     },
     set(params: SnapBoxParams) {
       store.set(clamp(params));

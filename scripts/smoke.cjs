@@ -82,11 +82,13 @@ const blobSize = (b) => (b && typeof b.size === 'number' ? b.size : 0);
   transpileToCjs(tmp, 'src/geometry/buildSnapBox.ts', 'buildSnapBox.cjs');
   const { buildSnapBox } = require(path.join(tmp, 'buildSnapBox.cjs'));
 
-  const base = { snapDepth: 1, thickness: 1.67, clearance: 0.2, thumbDiameter: 20 };
+  const base = { snapDepth: 1, thickness: 1.67, clearance: 0.2, thumbDiameter: 20, snap: true };
 
-  console.log('\n[default 75x50x25]');
+  console.log('\n[default 75x50x25, notch on]');
   {
-    const { tray, lid } = buildSnapBox({ w: 75, l: 50, h: 25, wDivisions: 1, lDivisions: 1, ...base });
+    // notch:true exercises the thumb-scallop cut path; it's a scallop within the
+    // wall so the bounding box matches the no-notch case below.
+    const { tray, lid } = buildSnapBox({ w: 75, l: 50, h: 25, wDivisions: 1, lDivisions: 1, ...base, notch: true });
     checkBox('tray', tray, [-39.17, -26.67, 0], [39.17, 26.67, 26.67]);
     checkBox('lid', lid, [-41.04, -28.54, 0], [41.04, 28.54, 28.34]);
     const step = tray.blobSTEP();

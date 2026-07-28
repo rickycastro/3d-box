@@ -1,16 +1,20 @@
 <script lang="ts">
   import { params, errors, errorByKey } from '../stores/params';
-  import { PARAM_ORDER, RANGES, type ParamKey } from '../geometry/types';
+  import { RANGES, type NumericParamKey } from '../geometry/types';
   import ParamField from './ParamField.svelte';
+  import ToggleField from './ToggleField.svelte';
   import ExportButtons from './ExportButtons.svelte';
 
-  const ADVANCED: ParamKey[] = ['thickness', 'snapDepth', 'clearance', 'thumbDiameter'];
-  const mainParams = PARAM_ORDER.filter((k) => !ADVANCED.includes(k));
+  // Main (always-visible) dimension fields. The thumb-notch and snap toggles
+  // (each with its own field) are appended after these in the template.
+  const MAIN: NumericParamKey[] = ['w', 'l', 'h', 'wDivisions', 'lDivisions'];
+  // Advanced numeric fields (always shown while the section is open).
+  const ADVANCED_NUM: NumericParamKey[] = ['thickness', 'clearance'];
 
   // Auto-open the advanced section if one of its fields is invalid, so a hidden
   // error can't leave the user stuck with a frozen viewport and no visible cause.
   let advOpen = $state(false);
-  let advError = $derived(ADVANCED.some((k) => $errorByKey[k]));
+  let advError = $derived(ADVANCED_NUM.some((k) => $errorByKey[k]));
   $effect(() => {
     if (advError) advOpen = true;
   });
@@ -22,7 +26,7 @@
   {/if}
 
   <div class="fields">
-    {#each mainParams as key (key)}
+    {#each MAIN as key (key)}
       <ParamField
         value={$params[key]}
         range={RANGES[key]}
@@ -30,12 +34,30 @@
         onchange={(v) => params.setField(key, v)}
       />
     {/each}
+    <ToggleField
+      label="Thumb notch"
+      checked={$params.notch}
+      onToggle={(v) => params.setToggle('notch', v)}
+      value={$params.thumbDiameter}
+      range={RANGES.thumbDiameter}
+      error={$errorByKey.thumbDiameter}
+      onValueChange={(v) => params.setField('thumbDiameter', v)}
+    />
+    <ToggleField
+      label="Snap lid"
+      checked={$params.snap}
+      onToggle={(v) => params.setToggle('snap', v)}
+      value={$params.snapDepth}
+      range={RANGES.snapDepth}
+      error={$errorByKey.snapDepth}
+      onValueChange={(v) => params.setField('snapDepth', v)}
+    />
   </div>
 
   <details class="advanced" bind:open={advOpen}>
     <summary>Advanced</summary>
     <div class="fields">
-      {#each ADVANCED as key (key)}
+      {#each ADVANCED_NUM as key (key)}
         <ParamField
           value={$params[key]}
           range={RANGES[key]}

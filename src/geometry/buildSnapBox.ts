@@ -139,7 +139,7 @@ function faceCenter(
 }
 
 export function buildSnapBox(params: SnapBoxParams): SnapBoxSolids {
-  const { w, l, h, wDivisions, lDivisions, snapDepth, thickness, clearance, thumbDiameter } =
+  const { w, l, h, wDivisions, lDivisions, snapDepth, thickness, clearance, thumbDiameter, notch, snap } =
     params;
   const t = thickness;
   const c = clearance;
@@ -204,27 +204,30 @@ export function buildSnapBox(params: SnapBoxParams): SnapBoxSolids {
     }
 
     // 4. Female snap pockets: TWO per selected wall, cut into the EXTERIOR face.
-    const extHalfX = exW / 2; // = w/2 + t
-    const extHalfY = exL / 2; // = l/2 + t
-    const femLength = SNAP_LENGTH + 2 * c;
-    const femDepth = sd + c;
-    // Centerline rule: the snap base sits 2*thickness clear of each container
-    // edge. The 45°/snapDepth protrusion has a base height of 2*snapDepth, so its
-    // half-height == snapDepth; a centerline at (2t + snapDepth) puts the base's
-    // near edge exactly 2t above the floor, and (by symmetry) 2t below the top lip.
-    //   bottom indent center = (2t + snapDepth) up from the base
-    //   top indent center    = exH - (2t + snapDepth) = h - t - snapDepth
-    const zBottom = 2 * t + sd;
-    const zTop = exH - (2 * t + sd); // = h - t - snapDepth
-    for (const wall of trayWalls) {
-      const faceHalf = wall.axis === 'X' ? extHalfX : extHalfY;
-      for (const z of [zTop, zBottom]) {
-        const tool = placeOnWall(
-          makeSnapSolid(femLength, femDepth),
-          wall,
-          faceCenter(wall, faceHalf, z, EPS), // base EPS OUTSIDE the face
-        );
-        body = cutInto(body, tool);
+    //    Optional — skipped entirely unless snaps are enabled.
+    if (snap) {
+      const extHalfX = exW / 2; // = w/2 + t
+      const extHalfY = exL / 2; // = l/2 + t
+      const femLength = SNAP_LENGTH + 2 * c;
+      const femDepth = sd + c;
+      // Centerline rule: the snap base sits 2*thickness clear of each container
+      // edge. The 45°/snapDepth protrusion has a base height of 2*snapDepth, so its
+      // half-height == snapDepth; a centerline at (2t + snapDepth) puts the base's
+      // near edge exactly 2t above the floor, and (by symmetry) 2t below the top lip.
+      //   bottom indent center = (2t + snapDepth) up from the base
+      //   top indent center    = exH - (2t + snapDepth) = h - t - snapDepth
+      const zBottom = 2 * t + sd;
+      const zTop = exH - (2 * t + sd); // = h - t - snapDepth
+      for (const wall of trayWalls) {
+        const faceHalf = wall.axis === 'X' ? extHalfX : extHalfY;
+        for (const z of [zTop, zBottom]) {
+          const tool = placeOnWall(
+            makeSnapSolid(femLength, femDepth),
+            wall,
+            faceCenter(wall, faceHalf, z, EPS), // base EPS OUTSIDE the face
+          );
+          body = cutInto(body, tool);
+        }
       }
     }
 
@@ -265,27 +268,33 @@ export function buildSnapBox(params: SnapBoxParams): SnapBoxSolids {
 
     // 3. Thumb notch(es): semicircular scallop on the bottom opening edge of the
     //    target wall's midpoint. Cylinder axis == wall normal, full-thickness.
-    for (const wall of lidWalls) {
-      const innerHalf = wall.axis === 'X' ? innerHalfX : innerHalfY;
-      const outerHalf = wall.axis === 'X' ? outerHalfX : outerHalfY;
-      const cutter = makeThumbCutter(wall, innerHalf, outerHalf, R_THUMB);
-      body = cutInto(body, cutter);
+    //    Optional — skipped entirely unless the notch is enabled.
+    if (notch) {
+      for (const wall of lidWalls) {
+        const innerHalf = wall.axis === 'X' ? innerHalfX : innerHalfY;
+        const outerHalf = wall.axis === 'X' ? outerHalfX : outerHalfY;
+        const cutter = makeThumbCutter(wall, innerHalf, outerHalf, R_THUMB);
+        body = cutInto(body, cutter);
+      }
     }
 
     // 4. Male snap ridge(s): one per width wall, fused onto the INTERIOR face at
     //    z = h - t - snapDepth — the same centerline as the tray's TOP indent, so
     //    the two engage in normal assembly (and the ridge meets the tray's BOTTOM
     //    indent in the flipped/alternate nesting mode). Lid and tray share base
-    //    z=0, so this z is identical in both frames.
-    const zRidge = h - t - sd;
-    for (const wall of lidWalls) {
-      const faceHalf = wall.axis === 'X' ? innerHalfX : innerHalfY;
-      const ridge = placeOnWall(
-        makeSnapSolid(SNAP_LENGTH, sd),
-        wall,
-        faceCenter(wall, faceHalf, zRidge, EPS), // base EPS embedded INTO the wall
-      );
-      body = fuseInto(body, ridge);
+    //    z=0, so this z is identical in both frames. Optional — skipped unless
+    //    snaps are enabled (must stay in lockstep with the tray pockets above).
+    if (snap) {
+      const zRidge = h - t - sd;
+      for (const wall of lidWalls) {
+        const faceHalf = wall.axis === 'X' ? innerHalfX : innerHalfY;
+        const ridge = placeOnWall(
+          makeSnapSolid(SNAP_LENGTH, sd),
+          wall,
+          faceCenter(wall, faceHalf, zRidge, EPS), // base EPS embedded INTO the wall
+        );
+        body = fuseInto(body, ridge);
+      }
     }
 
     return body;
