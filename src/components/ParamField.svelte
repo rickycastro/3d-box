@@ -21,9 +21,22 @@
   // Custom steppers (the native ::-webkit-inner-spin-button can't be made to
   // reliably fill the field height). One step per click, clamped to the range.
   function bump(dir: 1 | -1) {
-    const step = range.step || 1;
     const start = Number.isFinite(value) ? value : range.min;
-    let v = Math.min(range.max, Math.max(range.min, start + dir * step));
+    let v: number;
+    if (range.bumpStep) {
+      // Snap onto the bumpStep grid in the click direction: fields that accept
+      // fine typed precision (e.g. dimensions, 0.01mm) still step in whole units,
+      // rounding away any fractional part rather than carrying it along.
+      const s = range.bumpStep;
+      const grid = start / s;
+      v =
+        dir === 1
+          ? (Math.floor(grid + 1e-9) + 1) * s
+          : (Math.ceil(grid - 1e-9) - 1) * s;
+    } else {
+      v = start + dir * (range.step || 1);
+    }
+    v = Math.min(range.max, Math.max(range.min, v));
     v = parseFloat(v.toFixed(4)); // kill float drift (e.g. 0.1 + 0.2)
     onchange(v);
   }

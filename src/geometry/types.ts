@@ -31,7 +31,7 @@ export const DEFAULTS: SnapBoxParams = {
   h: 25,
   wDivisions: 1,
   lDivisions: 1,
-  snapDepth: 1,
+  snapDepth: 0.6,
   thickness: 1.67,
   clearance: 0.2,
   thumbDiameter: 20,
@@ -53,7 +53,14 @@ export const URL_KEYS: Record<ParamKey, string> = {
 export interface Range {
   min: number;
   max: number;
+  /** Typed-input precision (native `step` attribute). */
   step: number;
+  /**
+   * Stepper-click increment, when it should differ from `step`. The stepper
+   * snaps the value onto this grid in the click direction, so a field can
+   * accept fine typed precision yet step in clean whole units. Defaults to `step`.
+   */
+  bumpStep?: number;
   /** Whole numbers only (divisions). */
   integer?: boolean;
   label: string;
@@ -64,9 +71,9 @@ export interface Range {
 // are silently clamped in the store. Cross-parameter compatibility (tier 2)
 // lives in validate(), NOT here.
 export const RANGES: Record<ParamKey, Range> = {
-  w: { min: 1, max: 300, step: 1, label: 'Width', unit: 'mm' },
-  l: { min: 1, max: 300, step: 1, label: 'Length', unit: 'mm' },
-  h: { min: 1, max: 300, step: 1, label: 'Height', unit: 'mm' },
+  w: { min: 1, max: 300, step: 0.01, bumpStep: 1, label: 'Width', unit: 'mm' },
+  l: { min: 1, max: 300, step: 0.01, bumpStep: 1, label: 'Length', unit: 'mm' },
+  h: { min: 1, max: 300, step: 0.01, bumpStep: 1, label: 'Height', unit: 'mm' },
   wDivisions: { min: 1, max: 50, step: 1, integer: true, label: 'Width divisions' },
   lDivisions: { min: 1, max: 50, step: 1, integer: true, label: 'Length divisions' },
   snapDepth: { min: 0.2, max: 2, step: 0.05, label: 'Snap depth', unit: 'mm' },
