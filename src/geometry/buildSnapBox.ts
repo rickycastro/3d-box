@@ -208,18 +208,14 @@ export function buildSnapBox(params: SnapBoxParams): SnapBoxSolids {
     const extHalfY = exL / 2; // = l/2 + t
     const femLength = SNAP_LENGTH + 2 * c;
     const femDepth = sd + c;
-    // Centerline rule (owner-confirmed; the 45°/snapDepth protrusion has a base
-    // height of 2*snapDepth, so its half-height == snapDepth):
-    //   bottom indent center = (t + snapDepth) up from the base
-    //   top indent center    = (t + snapDepth) down from the top lip (rim, exH)
-    //                        = exH - (t + snapDepth) = h - snapDepth
-    // NOTE: only the base sample ai-75(1)-50(1)-25 places the TOP indent
-    // correctly (24 = h - snapDepth). The other six samples inherited a
-    // parametric error that shifts the top indent down by one wall thickness
-    // (to h - snapDepth - t); the bottom indent is correct in all seven. We
-    // follow the correct rule below and intentionally do NOT reproduce that bug.
-    const zBottom = t + sd;
-    const zTop = exH - (t + sd); // = h - snapDepth
+    // Centerline rule: the snap base sits 2*thickness clear of each container
+    // edge. The 45°/snapDepth protrusion has a base height of 2*snapDepth, so its
+    // half-height == snapDepth; a centerline at (2t + snapDepth) puts the base's
+    // near edge exactly 2t above the floor, and (by symmetry) 2t below the top lip.
+    //   bottom indent center = (2t + snapDepth) up from the base
+    //   top indent center    = exH - (2t + snapDepth) = h - t - snapDepth
+    const zBottom = 2 * t + sd;
+    const zTop = exH - (2 * t + sd); // = h - t - snapDepth
     for (const wall of trayWalls) {
       const faceHalf = wall.axis === 'X' ? extHalfX : extHalfY;
       for (const z of [zTop, zBottom]) {
@@ -277,11 +273,11 @@ export function buildSnapBox(params: SnapBoxParams): SnapBoxSolids {
     }
 
     // 4. Male snap ridge(s): one per width wall, fused onto the INTERIOR face at
-    //    z = h - snapDepth — the same centerline as the tray's TOP indent, so the
-    //    two engage in normal assembly (and the ridge meets the tray's BOTTOM
+    //    z = h - t - snapDepth — the same centerline as the tray's TOP indent, so
+    //    the two engage in normal assembly (and the ridge meets the tray's BOTTOM
     //    indent in the flipped/alternate nesting mode). Lid and tray share base
     //    z=0, so this z is identical in both frames.
-    const zRidge = h - sd;
+    const zRidge = h - t - sd;
     for (const wall of lidWalls) {
       const faceHalf = wall.axis === 'X' ? innerHalfX : innerHalfY;
       const ridge = placeOnWall(

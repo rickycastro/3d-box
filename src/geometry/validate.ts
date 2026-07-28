@@ -107,5 +107,19 @@ export function validate(params: SnapBoxParams): ValidationError[] {
     });
   }
 
+  // 5. Vertical snap fit. The bottom and top snap indents each sit 2*thickness
+  //    clear of their nearest edge and have a base half-height of snapDepth, so
+  //    their base edges span [2t, 2t+2sd] and [exH-2t-2sd, exH-2t] (exH = h+t).
+  //    Short boxes make these overlap; require a positive gap between them.
+  const snapBottomTop = 2 * t + 2 * snapDepth; // upper edge of the bottom indent
+  const snapTopBottom = h + t - 2 * t - 2 * snapDepth; // lower edge of the top indent
+  if (snapBottomTop >= snapTopBottom) {
+    const minH = 3 * t + 4 * snapDepth; // h must exceed this for a positive gap
+    errors.push({
+      keys: ['h', 'snapDepth', 'thickness'],
+      message: `Box is too short for the snaps — the top and bottom snap indents overlap. Height must exceed ${fmt(minH)}mm (increase height, or reduce snap depth or wall thickness).`,
+    });
+  }
+
   return errors;
 }
