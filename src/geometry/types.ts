@@ -112,6 +112,30 @@ export function exportBaseName(p: SnapBoxParams, part: 'tray' | 'lid'): string {
   return `box-${part}-w${p.w}${wDiv}-l${p.l}${lDiv}-h${p.h}`;
 }
 
+export interface OuterSize {
+  /** Outside width, mm (X). */
+  w: number;
+  /** Outside length, mm (Y). */
+  l: number;
+  /** Outside height, mm (Z). */
+  h: number;
+}
+
+/**
+ * Outside envelope of each printed part. Mirrors the shell dimensions in
+ * buildSnapBox() exactly — keep the two in lockstep:
+ *   tray: exW/exL/exH        lid: outerW/outerL/lidHeight
+ * Snap ridges/pockets don't change the envelope (the male ridge sits on the
+ * lid's INTERIOR face), so these hold whatever the feature toggles are.
+ */
+export function outerDimensions(p: SnapBoxParams): { tray: OuterSize; lid: OuterSize } {
+  const { w, l, h, thickness: t, clearance: c } = p;
+  return {
+    tray: { w: w + 2 * t, l: l + 2 * t, h: h + t },
+    lid: { w: w + 4 * t + 2 * c, l: l + 4 * t + 2 * c, h: h + 2 * t },
+  };
+}
+
 export interface ValidationError {
   /** Param field(s) implicated by this error (for UI highlighting). */
   keys: ParamKey[];

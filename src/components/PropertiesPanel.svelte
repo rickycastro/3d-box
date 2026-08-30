@@ -3,6 +3,7 @@
   import { RANGES, type NumericParamKey } from '../geometry/types';
   import ParamField from './ParamField.svelte';
   import ToggleField from './ToggleField.svelte';
+  import Info from './Info.svelte';
   import ExportButtons from './ExportButtons.svelte';
 
   // All numeric dimension fields, shown together. The thumb-notch and snap
@@ -42,6 +43,7 @@
       error={$errorByKey.snapDepth}
       onValueChange={(v) => params.setField('snapDepth', v)}
     />
+    <Info />
   </div>
 
   <div class="divider"></div>
